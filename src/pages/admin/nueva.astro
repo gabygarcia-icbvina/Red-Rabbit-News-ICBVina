@@ -1,0 +1,41 @@
+---
+export const prerender = false;
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout title="Nueva noticia">
+    <main class="">
+        <form method="POST" class="max-w-2xl mx-auto p-6 space-y-4">
+        <div class="form-control border-2 border-amber-200">
+        <label class="label"><span class="label-text text-xs">Título</span></label>
+        <input name="title" type="text" class="input input-bordered input-sm bg-base-200 w-full" required />
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+        <div class="form-control border-2 border-amber-200">
+            <label class="label"><span class="label-text text-xs">Categoría</span></label>
+            <input name="category" type="text" class="input input-bordered input-sm bg-base-200" />
+        </div>
+        <div class="form-control border-2 border-amber-200">
+            <label class="label"><span class="label-text text-xs">Autor</span></label>
+            <input name="author" type="text" class="input input-bordered input-sm bg-base-200" />
+        </div>
+        </div>
+
+        <div class="form-control border-2 border-amber-200">
+        <label class="label"><span class="label-text text-xs">Imagen (Cloudinary URL)</span></label>
+        <input name="image_url" type="url" class="input input-bordered input-sm bg-base-200" placeholder="https://res.cloudinary.com/..." />
+        </div>
+
+        <div class="form-control border-2 border-amber-200">
+        <label class="label"><span class="label-text text-xs">Contenido</span></label>
+        <textarea name="content" rows="8" class="textarea textarea-bordered bg-base-200 text-sm leading-relaxed"></textarea>
+        </div>
+
+        <div class="flex gap-3 justify-end">
+        <button name="action" value="draft" class="btn btn-sm btn-ghost cursor-pointer">Guardar borrador</button>
+        <button name="action" value="publish" class="btn btn-sm btn-primary cursor-pointer">Publicar</button>
+        </div>
+    </form>
+    </main>
+</Layout>

@@ -1,0 +1,48 @@
+---
+export const prerender = false  // SSR para proteger con auth
+
+import { supabase } from '../../lib/supabase';
+import Layout from '../../layouts/Layout.astro';
+
+const { data: articles } = await supabase
+  .from('articles')
+  .select('id, title, category, status, created_at')
+  .order('created_at', { ascending: false })
+  .limit(20)
+---
+
+<Layout title="Admin — Noticias">
+  <div class="p-6 max-w-4xl mx-auto">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+      <div class="stat bg-base-200 rounded-lg p-4">
+        <div class="stat-title text-xs">Publicados</div>
+        <div class="stat-value text-2xl">{articles?.filter(a => a.status === 'published').length}</div>
+      </div>
+      <!-- más stats... -->
+    </div>
+
+    <table class="table table-sm bg-base-200 rounded-lg">
+      <thead>
+        <tr class="text-base-content/40 text-xs">
+          <th>Título</th><th>Categoría</th><th>Estado</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {articles?.map(a => (
+          <tr class="hover:bg-base-300 transition-colors">
+            <td class="text-sm">{a.title}</td>
+            <td><span class="badge badge-xs badge-primary">{a.category}</span></td>
+            <td>
+              <span class:list={['text-xs', a.status === 'published' ? 'text-secondary' : 'text-accent']}>
+                ● {a.status === 'published' ? 'Publicado' : 'Borrador'}
+              </span>
+            </td>
+            <td>
+              <a href={`/admin/editar/${a.id}`} class="btn btn-xs btn-ghost">Editar</a>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</Layout>
