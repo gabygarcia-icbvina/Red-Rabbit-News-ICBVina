@@ -5,7 +5,16 @@ import RedRabbitLogo from '../../public/redrabbitnews.png';
 ---
 
 <Layout title="Inicio">
+	<section class="fixed inset-x-0 bottom-0 z-50 p-4 opacity-20 transition hover:opacity-100 sm:opacity-50 sm:inset-auto sm:right-4 sm:bottom-4 sm:max-w-[30rem] sm:p-0" id="helpWantedPopUp">
+		<div class="mx-auto w-full rounded-3xl bg-red-500/90 p-4 text-center text-sm font-semibold text-white shadow-lg shadow-red-500/25 sm:p-5 sm:text-base">
+			¡Únete a nuestro equipo de periodistas estudiantiles! Si te apasiona contar historias, compartir noticias y ser la voz de tu comunidad escolar, esta es tu oportunidad. Buscamos estudiantes creativos, curiosos y comprometidos para contribuir con artículos, reportajes fotográficos y más. No necesitas experiencia previa, solo ganas de aprender y compartir tu perspectiva única.
+			Completa el formulario de postulación en <a href="https://forms.gle/PsLjAwieQuAphxSFA" target="_blank" class="text-white underline">https://forms.gle/PsLjAwieQuAphxSFA</a>
+		</div>
+	</section>
 	<main class="min-h-screen bg-slate-950 text-slate-100">
+		<a href="/admin" class="absolute top-4 right-4 z-50 rounded-full bg-blue-500 p-2 text-white shadow-lg shadow-blue-500/25 transition hover:bg-cyan-400">
+			Panel Administrativo
+		</a>
 		<img src={RedRabbitLogo.src} alt="Logo de Red Rabbit News" class="z-100 mx-auto h-24 w-24 sm:h-40 sm:w-40 md:h-64 md:w-64 opacity-60 fixed rounded-lg" />
 		<section class="relative overflow-hidden">
 			<img src={SchoolImage.src} alt="Estudiantes leyendo un periódico escolar" class="absolute inset-0 h-full w-full object-cover opacity-30" />

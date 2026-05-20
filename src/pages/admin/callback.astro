@@ -1,0 +1,30 @@
+---
+export const prerender = false
+---
+
+<!-- Este script corre en el cliente, lee el token del hash y lo manda al servidor -->
+<script>
+  import { createClient } from '@supabase/supabase-js'
+
+  const supabase = createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY
+  )
+
+  const { data: { session }, error } = await supabase.auth.getSession()
+
+  if (session) {
+    // Manda los tokens al servidor para guardarlos en cookies httpOnly
+    await fetch('/admin/set-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        access_token:  session.access_token,
+        refresh_token: session.refresh_token,
+      }),
+    })
+    window.location.href = '/admin'
+  } else {
+    window.location.href = '/admin/login?error=1'
+  }
+</script>

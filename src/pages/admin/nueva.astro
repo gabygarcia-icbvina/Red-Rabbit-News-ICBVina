@@ -1,5 +1,32 @@
 ---
-import Layout from "../../layouts/Layout.astro";
+import { supabase } from '../../lib/supabase';
+import Layout from '../../layouts/Layout.astro';
+
+const accessToken = Astro.cookies.get('sb-access-token')?.value
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect('/admin/login')
+}
+
+const { data: { session }, error: sessionError } = await supabase.auth.setSession({
+  access_token: accessToken,
+  refresh_token: refreshToken,
+})
+
+if (sessionError || !session) {
+  return Astro.redirect('/admin/login')
+}
+
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('role')
+  .eq('id', session.user.id)
+  .single()
+
+if (profile?.role !== 'admin') {
+  return Astro.redirect('/')
+}
 ---
 
 <Layout title="Nueva noticia">
@@ -38,3 +65,20 @@ import Layout from "../../layouts/Layout.astro";
     </form>
     </main>
 </Layout>
+<script>
+    const form = document.querySelector('form') as HTMLFormElement;
+    const formData = new FormData(form);
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const action = formData.get('action');
+        const payload = {
+            title: formData.get('title'),
+            category: formData.get('category'),
+            author: formData.get('author'),
+            image_url: formData.get('image_url'),
+            content: formData.get('content')
+        };
+
+
+    })
+</script>

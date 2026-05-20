@@ -2,11 +2,38 @@
 import { supabase } from '../../lib/supabase';
 import Layout from '../../layouts/Layout.astro';
 
+const accessToken = Astro.cookies.get('sb-access-token')?.value
+const refreshToken = Astro.cookies.get('sb-refresh-token')?.value
+
+if (!accessToken || !refreshToken) {
+  return Astro.redirect('/admin/login')
+}
+
+const { data: { session }, error: sessionError } = await supabase.auth.setSession({
+  access_token: accessToken,
+  refresh_token: refreshToken,
+})
+
+if (sessionError || !session) {
+  return Astro.redirect('/admin/login')
+}
+
+const { data: profile } = await supabase
+  .from('profiles')
+  .select('role')
+  .eq('id', session.user.id)
+  .single()
+
+if (profile?.role !== 'admin') {
+  return Astro.redirect('/')
+}
+
 const { data: articles } = await supabase
   .from('articles')
   .select('id, title, category, status, created_at')
   .order('created_at', { ascending: false })
   .limit(20)
+
 ---
 
 <Layout title="Admin — Noticias">
