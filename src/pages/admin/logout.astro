@@ -1,0 +1,16 @@
+---
+export const prerender = false
+
+// Si es GET, borra la sesión y redirige
+if (Astro.request.method === 'GET') {
+  // Borra las cookies de autenticación
+  Astro.cookies.delete('sb-access-token', { path: '/' })
+  Astro.cookies.delete('sb-refresh-token', { path: '/' })
+  
+  // Redirige al login
+  return Astro.redirect('/admin/login')
+}
+
+// Si llega de otra forma, también redirige al login
+return Astro.redirect('/admin/login')
+---
