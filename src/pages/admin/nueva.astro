@@ -76,7 +76,10 @@ if (profile?.role !== 'admin') {
             category: formData.get('category'),
             author: formData.get('author'),
             image_url: formData.get('image_url'),
-            content: formData.get('content')
+            content: formData.get('content'),
+            status: action === 'publish' ? 'published' : 'draft',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
         };
 
 

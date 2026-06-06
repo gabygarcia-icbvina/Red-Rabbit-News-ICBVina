@@ -1,5 +1,4 @@
 // src/pages/api/admin/articles/[id].ts
-// PUT → actualizar, DELETE → eliminar
 import type { APIRoute } from 'astro'
 import { supabase } from '../../../../lib/supabase'
 
@@ -22,21 +21,20 @@ export const PUT: APIRoute = async ({ request, cookies, params }) => {
 
   const { id } = params
   const body = await request.json()
-  const { title, slug, excerpt, content, cover_url, category_id, author_id, status } = body
+  const { title, slug, excerpt, content, image_url, category, author_id, status } = body
+
+  if (!title || !slug)
+    return new Response('Título y slug son obligatorios', { status: 400 })
 
   const payload: any = {
     title,
     slug,
     excerpt: excerpt || null,
     content: content || null,
-    cover_url: cover_url || null,
-    category_id: category_id || null,
+    image_url: image_url || null,
+    category: category || null,
     author_id: author_id || null,
-    status: status ?? 'draft',
-  }
-
-  if (status === 'published') {
-    payload.published_at = new Date().toISOString()
+    status: status || 'draft',
   }
 
   const { data, error } = await supabase
@@ -47,7 +45,10 @@ export const PUT: APIRoute = async ({ request, cookies, params }) => {
     .single()
 
   if (error) return new Response(error.message, { status: 400 })
-  return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
 }
 
 export const DELETE: APIRoute = async ({ cookies, params }) => {

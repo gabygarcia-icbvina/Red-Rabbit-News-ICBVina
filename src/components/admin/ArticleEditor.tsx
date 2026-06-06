@@ -20,9 +20,9 @@ interface ArticleEditorProps {
     slug: string
     excerpt: string
     content: string
-    cover_url: string
+    image_url: string
     status: 'draft' | 'published'
-    category_id: string
+    category: string
     author_id: string
   }
   categories: Category[]
@@ -45,8 +45,8 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
   const [slug, setSlug] = useState(article?.slug ?? '')
   const [excerpt, setExcerpt] = useState(article?.excerpt ?? '')
   const [content, setContent] = useState(article?.content ?? '')
-  const [coverUrl, setCoverUrl] = useState(article?.cover_url ?? '')
-  const [categoryId, setCategoryId] = useState(article?.category_id ?? '')
+  const [imageUrl, setImageUrl] = useState(article?.image_url ?? '')
+  const [category, setCategory] = useState(article?.category ?? '')
   const [authorId, setAuthorId] = useState(article?.author_id ?? '')
   const [status, setStatus] = useState<'draft' | 'published'>(article?.status ?? 'draft')
   const [uploading, setUploading] = useState(false)
@@ -66,7 +66,7 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
     setUploading(true)
     try {
       const url = await uploadImage(file, 'redrabbit/covers')
-      setCoverUrl(url)
+      setImageUrl(url)
     } catch {
       setError('Error al subir la imagen')
     } finally {
@@ -80,7 +80,16 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
     setSaving(true)
     setError('')
     try {
-      const payload = { title, slug, excerpt, content, cover_url: coverUrl, category_id: categoryId || null, author_id: authorId || null, status: targetStatus }
+      const payload : any = { 
+        title, 
+        slug, 
+        excerpt, 
+        content, 
+        image_url: imageUrl || null, 
+        category: category || null, 
+        author_id: authorId || null, 
+        status: targetStatus,
+      }
       const url = isEdit ? `/api/admin/articles/${article.id}` : '/api/admin/articles'
       const method = isEdit ? 'PUT' : 'POST'
       const res = await fetch(url, {
@@ -90,7 +99,8 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
-      window.location.href = `/admin/articles/${data.id}`
+      window.open(`/articles/id/${data.id}`, '_blank')
+      window.location.href = `/articles/${data.slug}`
     } catch (e: any) {
       setError(e.message ?? 'Error al guardar')
     } finally {
@@ -209,11 +219,11 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
           {/* Cover image */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Portada</p>
-            {coverUrl ? (
+            {imageUrl ? (
               <div className="relative">
-                <img src={coverUrl} alt="Portada" className="w-full h-36 object-cover rounded-lg mb-2" />
+                <img src={imageUrl} alt="Portada" className="w-full h-36 object-cover rounded-lg mb-2" />
                 <button
-                  onClick={() => setCoverUrl('')}
+                  onClick={() => setImageUrl('')}
                   className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white text-xs px-2 py-1 rounded"
                 >
                   Quitar
@@ -232,8 +242,8 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-3">Categoría</p>
             <select
-              value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
+              value={category}
+              onChange={e => setCategory(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-red-500/50"
             >
               <option value="">Sin categoría</option>

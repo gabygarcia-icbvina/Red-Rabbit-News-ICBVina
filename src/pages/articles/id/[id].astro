@@ -1,0 +1,303 @@
+---
+export const prerender = false
+import { supabase } from '../../../lib/supabase'
+import { cloudinaryUrl } from '../../../lib/cloudinary'
+
+const { id } = Astro.params
+
+const { data: article } = await supabase
+  .from('articles')
+  .select('*')
+  .eq('id', id)
+  .eq('status', 'published')
+  .single()
+
+if (!article) return Astro.redirect('/404')
+
+// Categoría: buscar por el valor de texto que guarda articles.category
+const { data: categoryData } = article.category
+  ? await supabase
+      .from('categories')
+      .select('name, color, slug')
+      .eq('id', article.category)
+      .single()
+  : { data: null }
+
+// Artículos relacionados por categoría
+const { data: related } = article.category
+  ? await supabase
+      .from('articles')
+      .select('id, title, slug, image_url, created_at')
+      .eq('status', 'published')
+      .eq('category', article.category)
+      .neq('id', article.id)
+      .limit(3)
+  : { data: [] }
+
+// Comentarios aprobados
+const { data: comments } = await supabase
+  .from('comments')
+  .select('*')
+  .eq('article_id', article.id)
+  .eq('approved', true)
+  .order('created_at', { ascending: true })
+
+// Manejar envío de comentario
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const author_name = form.get('author_name')?.toString().trim() ?? ''
+  const content = form.get('content')?.toString().trim() ?? ''
+  if (author_name && content) {
+    await supabase.from('comments').insert({
+      article_id: article.id,
+      author_name,
+      content,
+      approved: false,
+    })
+  }
+  // Después
+    return Astro.redirect(`/articles/id/${id}?sent=1`)
+}
+
+const commentSent = Astro.url.searchParams.get('sent') === '1'
+
+const category = categoryData
+const coverUrl = article.image_url
+  ? cloudinaryUrl(article.image_url, { width: 1400, height: 600, quality: 85 })
+  : null
+
+function renderMarkdown(md: string): string {
+  if (!md) return ''
+  return md
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hbulia])(.+)$/gm, (line) =>
+      line.trim() && !line.startsWith('<') ? `<p>${line}</p>` : line
+    )
+}
+
+const contentHtml = renderMarkdown(article.content ?? '')
+const publishedDate = new Date(article.updated_at ?? article.created_at)
+  .toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })
+---
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{article.title} — Red Rabbit News</title>
+  <meta name="description" content={article.excerpt ?? article.title} />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,300;1,8..60,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1208; --ink-light: #4a3f2f; --ink-muted: #8a7a68;
+      --paper: #f7f3ec; --paper-warm: #ede8df; --paper-dark: #e0d9ce;
+      --red: #c0392b; --red-dark: #922b21; --rule: #c8bfb0;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Source Serif 4', Georgia, serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+    html { background: var(--paper); color: var(--ink); }
+    body { font-family: var(--font-body); background: var(--paper); min-height: 100vh; }
+    .masthead { border-bottom: 3px double var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 100; }
+    .masthead-inner { max-width: 1100px; margin: 0 auto; padding: 0.75rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    .masthead-logo { font-family: var(--font-display); font-size: 1.5rem; font-weight: 900; color: var(--red); text-decoration: none; letter-spacing: -0.02em; }
+    .masthead-logo span { color: var(--ink); }
+    .masthead-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .hero { position: relative; height: 520px; overflow: hidden; border-bottom: 2px solid var(--rule); }
+    .hero-img { width: 100%; height: 100%; object-fit: cover; filter: sepia(15%) contrast(1.05); }
+    .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(26,18,8,0.85) 0%, rgba(26,18,8,0.2) 60%, transparent 100%); }
+    .hero-content { position: absolute; bottom: 0; left: 0; right: 0; padding: 2.5rem 3rem; max-width: 900px; }
+    .hero-category { display: inline-block; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.3rem 0.75rem; border-radius: 2px; margin-bottom: 1rem; color: white; }
+    .hero-title { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 900; color: white; line-height: 1.1; letter-spacing: -0.02em; text-shadow: 0 2px 20px rgba(0,0,0,0.4); margin-bottom: 1rem; }
+    .hero-meta { display: flex; align-items: center; gap: 1.5rem; color: rgba(255,255,255,0.75); font-size: 0.8rem; font-family: var(--font-mono); }
+    .hero-meta-sep { opacity: 0.4; }
+    .no-hero { max-width: 740px; margin: 0 auto; padding: 3rem 2rem 0; }
+    .no-hero .article-category { display: inline-block; font-family: var(--font-mono); font-size: 0.65rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; padding: 0.3rem 0.75rem; border-radius: 2px; margin-bottom: 1.25rem; color: white; }
+    .no-hero .article-title { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 900; color: var(--ink); line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 1rem; }
+    .no-hero .article-meta { display: flex; align-items: center; gap: 1rem; color: var(--ink-muted); font-size: 0.75rem; font-family: var(--font-mono); padding-bottom: 1.5rem; border-bottom: 1px solid var(--rule); }
+    .page-wrap { max-width: 1100px; margin: 0 auto; padding: 3rem 2rem; display: grid; grid-template-columns: 1fr 280px; gap: 4rem; align-items: start; }
+    .article-excerpt { font-family: var(--font-body); font-size: 1.2rem; font-weight: 300; font-style: italic; color: var(--ink-light); line-height: 1.6; padding: 1.5rem 0; border-top: 3px solid var(--ink); border-bottom: 1px solid var(--rule); margin-bottom: 2rem; }
+    .article-body { font-family: var(--font-body); font-size: 1.05rem; line-height: 1.85; color: var(--ink); }
+    .article-body p { margin-bottom: 1.4rem; }
+    .article-body h1, .article-body h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink); margin: 2.5rem 0 1rem; line-height: 1.2; }
+    .article-body h1 { font-size: 1.8rem; }
+    .article-body h2 { font-size: 1.4rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--rule); }
+    .article-body h3 { font-family: var(--font-display); font-size: 1.15rem; font-weight: 700; font-style: italic; margin: 2rem 0 0.75rem; color: var(--ink-light); }
+    .article-body blockquote { border-left: 4px solid var(--red); padding: 0.5rem 1.5rem; margin: 2rem 0; font-style: italic; font-size: 1.15rem; color: var(--ink-light); background: var(--paper-warm); }
+    .article-body a { color: var(--red-dark); text-decoration: underline; text-underline-offset: 3px; }
+    .article-body ul { padding-left: 1.5rem; margin-bottom: 1.4rem; }
+    .article-body li { margin-bottom: 0.4rem; }
+    .article-body strong { font-weight: 600; }
+    .article-body em { font-style: italic; }
+    .article-body > p:first-of-type::first-letter { font-family: var(--font-display); font-size: 4.5rem; font-weight: 900; float: left; line-height: 0.8; margin: 0.1rem 0.15rem 0 0; color: var(--red); }
+    .sidebar { position: sticky; top: 80px; }
+    .sidebar-block { border-top: 3px double var(--rule); padding-top: 1.25rem; margin-bottom: 2.5rem; }
+    .sidebar-label { font-family: var(--font-mono); font-size: 0.6rem; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 1rem; }
+    .sidebar-author-name { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--ink); margin-bottom: 0.25rem; }
+    .sidebar-date { font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-muted); }
+    .divider-rule { border: none; border-top: 1px solid var(--rule); margin: 2.5rem 0; }
+    .divider-double { border: none; border-top: 3px double var(--rule); margin: 2.5rem 0; }
+    .comments-section { max-width: 740px; }
+    .comments-header { font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--ink); margin-bottom: 0.5rem; }
+    .comment-item { padding: 1.25rem 0; border-bottom: 1px solid var(--rule); }
+    .comment-name { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; color: var(--ink); }
+    .comment-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--ink-muted); margin-left: 0.75rem; }
+    .comment-text { margin-top: 0.5rem; font-size: 0.95rem; line-height: 1.6; color: var(--ink-light); }
+    .comment-form { margin-top: 2rem; background: var(--paper-warm); border: 1px solid var(--rule); padding: 1.5rem; }
+    .comment-form-title { font-family: var(--font-display); font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--ink); }
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 0.4rem; }
+    .form-input, .form-textarea { width: 100%; background: var(--paper); border: 1px solid var(--rule); padding: 0.6rem 0.85rem; font-family: var(--font-body); font-size: 0.9rem; color: var(--ink); outline: none; transition: border-color 0.15s; }
+    .form-input:focus, .form-textarea:focus { border-color: var(--red); }
+    .form-textarea { resize: vertical; min-height: 100px; }
+    .form-submit { background: var(--red); color: white; border: none; padding: 0.6rem 1.5rem; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; transition: background 0.15s; }
+    .form-submit:hover { background: var(--red-dark); }
+    .comment-sent { background: #eaf7ea; border: 1px solid #b8ddb8; padding: 0.75rem 1rem; font-family: var(--font-mono); font-size: 0.75rem; color: #2d6a2d; margin-bottom: 1.5rem; }
+    @media (max-width: 768px) {
+      .page-wrap { grid-template-columns: 1fr; gap: 2rem; }
+      .hero { height: 360px; }
+      .hero-content { padding: 1.5rem; }
+      .sidebar { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <a href="/" class="masthead-logo">Red<span>Rabbit</span></a>
+      <span class="masthead-date">
+        {new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      </span>
+    </div>
+  </header>
+
+  {coverUrl ? (
+    <div class="hero">
+      <img src={coverUrl} alt={article.title} class="hero-img" />
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        {category && (
+          <span class="hero-category" style={`background:${category.color}`}>
+            {category.name}
+          </span>
+        )}
+        <h1 class="hero-title">{article.title}</h1>
+        <div class="hero-meta">
+          <span>{publishedDate}</span>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <div class="no-hero">
+      {category && (
+        <span class="article-category" style={`background:${category.color}`}>
+          {category.name}
+        </span>
+      )}
+      <h1 class="article-title">{article.title}</h1>
+      <div class="article-meta">
+        <span>{publishedDate}</span>
+      </div>
+    </div>
+  )}
+
+  <div class="page-wrap">
+    <main>
+      {article.excerpt && (
+        <p class="article-excerpt">{article.excerpt}</p>
+      )}
+
+      <div class="article-body" set:html={contentHtml} />
+
+      <hr class="divider-double" />
+
+      <div class="comments-section">
+        <h2 class="comments-header">
+          {comments?.length
+            ? `${comments.length} comentario${comments.length !== 1 ? 's' : ''}`
+            : 'Comentarios'}
+        </h2>
+        <hr class="divider-rule" />
+
+        {commentSent && (
+          <div class="comment-sent">
+            Tu comentario fue enviado y está pendiente de aprobación.
+          </div>
+        )}
+
+        {comments?.length ? (
+          comments.map(c => (
+            <div class="comment-item">
+              <div>
+                <span class="comment-name">{c.author_name}</span>
+                <span class="comment-date">
+                  {new Date(c.created_at).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </span>
+              </div>
+              <p class="comment-text">{c.content}</p>
+            </div>
+          ))
+        ) : (
+          !commentSent && (
+            <p style="color:var(--ink-muted);font-size:0.9rem;padding:1rem 0;">
+              Sé el primero en comentar.
+            </p>
+          )
+        )}
+
+        <form class="comment-form" method="POST">
+          <p class="comment-form-title">Deja un comentario</p>
+          <div class="form-group">
+            <label class="form-label" for="author_name">Nombre</label>
+            <input class="form-input" id="author_name" name="author_name" type="text" required placeholder="Tu nombre" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="content">Comentario</label>
+            <textarea class="form-textarea" id="content" name="content" required placeholder="Escribe tu comentario…"></textarea>
+          </div>
+          <button class="form-submit" type="submit">Enviar comentario</button>
+        </form>
+      </div>
+    </main>
+
+    <aside class="sidebar">
+      <div class="sidebar-block">
+        <p class="sidebar-label">Publicado</p>
+        <p class="sidebar-date">{publishedDate}</p>
+      </div>
+
+      {category && (
+        <div class="sidebar-block">
+          <p class="sidebar-label">Sección</p>
+          <a
+            href={`/categoria/${category.slug}`}
+            style={`color:${category.color};font-family:var(--font-display);font-weight:700;font-size:1.05rem;text-decoration:none;`}
+          >
+            {category.name} →
+          </a>
+        </div>
+      )}
+
+      <div class="sidebar-block">
+        <p class="sidebar-label">Navegación</p>
+        <a href="/" style="font-family:var(--font-mono);font-size:0.7rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-muted);text-decoration:none;">
+          ← Portada
+        </a>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
