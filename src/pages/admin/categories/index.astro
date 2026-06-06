@@ -1,0 +1,139 @@
+---
+export const prerender = false
+import Layout from '../../../layouts/Layout.astro'
+import { supabase } from '../../../lib/supabase'
+
+// Crear categoría
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const name = form.get('name')?.toString().trim() ?? ''
+  const color = form.get('color')?.toString() ?? '#ef4444'
+  const slug = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+  if (name) {
+    await supabase.from('categories').insert({ name, slug, color })
+  }
+  return Astro.redirect('/admin/categories')
+}
+
+// Eliminar categoría
+const deleteId = Astro.url.searchParams.get('delete')
+if (deleteId) {
+  await supabase.from('categories').delete().eq('id', deleteId)
+  return Astro.redirect('/admin/categories')
+}
+
+const { data: categories } = await supabase.from('categories').select('*, articles(count)').order('name')
+---
+
+<Layout title="Categorías — Admin">
+  <div class="min-h-screen bg-slate-950 text-white">
+    <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
+      <div class="px-6 py-5 border-b border-slate-800">
+        <p class="text-red-400 text-xs font-bold uppercase tracking-widest">Red Rabbit</p>
+        <p class="text-white font-semibold text-sm mt-0.5">Panel editorial</p>
+      </div>
+      <nav class="flex-1 px-3 py-4 space-y-1">
+        {[
+          { href: '/admin', label: 'Dashboard', icon: '▦' },
+          { href: '/admin/articles', label: 'Artículos', icon: '✎' },
+          { href: '/admin/categories', label: 'Categorías', icon: '⊞' },
+          { href: '/admin/authors', label: 'Autores', icon: '◎' },
+          { href: '/admin/comments', label: 'Comentarios', icon: '☰' },
+        ].map(item => (
+          <a
+            href={item.href}
+            class={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+              Astro.url.pathname === item.href ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <span>{item.icon}</span>{item.label}
+          </a>
+        ))}
+      </nav>
+      <div class="px-3 py-4 border-t border-slate-800">
+        <a href="/admin/logout" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-red-400 hover:bg-slate-800 transition">
+          <span>⏻</span> Cerrar sesión
+        </a>
+      </div>
+    </aside>
+
+    <main class="ml-60 p-8">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold">Categorías</h1>
+        <p class="text-slate-400 text-sm mt-1">Organiza los artículos por sección</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-6">
+        <!-- Lista -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-800">
+            <h2 class="font-semibold">Categorías actuales</h2>
+          </div>
+          <ul class="divide-y divide-slate-800">
+            {categories?.map(cat => (
+              <li class="flex items-center justify-between px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <span class="w-3 h-3 rounded-full" style={`background:${cat.color}`}></span>
+                  <div>
+                    <p class="text-white font-medium text-sm">{cat.name}</p>
+                    <p class="text-slate-500 text-xs font-mono">/{cat.slug}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-slate-500 text-xs">
+                    {(cat.articles as any)?.[0]?.count ?? 0} arts.
+                  </span>
+                  <a
+                    href={`/admin/categories?delete=${cat.id}`}
+                    onclick="return confirm('¿Eliminar categoría?')"
+                    class="text-xs text-red-400 hover:text-red-300 transition"
+                  >
+                    Eliminar
+                  </a>
+                </div>
+              </li>
+            ))}
+            {!categories?.length && (
+              <li class="px-6 py-8 text-center text-slate-500 text-sm">No hay categorías.</li>
+            )}
+          </ul>
+        </div>
+
+        <!-- Formulario nuevo -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 h-fit">
+          <h2 class="font-semibold mb-4">Nueva categoría</h2>
+          <form method="POST" class="space-y-4">
+            <div>
+              <label class="block text-sm text-slate-400 mb-1.5">Nombre</label>
+              <input
+                name="name"
+                required
+                placeholder="Ej: Cultura"
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-slate-600 focus:border-red-500/50 focus:outline-none transition"
+              />
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1.5">Color</label>
+              <div class="flex items-center gap-3">
+                <input
+                  name="color"
+                  type="color"
+                  value="#ef4444"
+                  class="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                />
+                <span class="text-slate-500 text-xs">Color de la etiqueta</span>
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="w-full py-2.5 rounded-full bg-red-500 hover:bg-red-400 text-white text-sm font-semibold transition"
+            >
+              Crear categoría
+            </button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>

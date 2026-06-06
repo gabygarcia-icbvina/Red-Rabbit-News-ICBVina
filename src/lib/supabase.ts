@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
+import type { AstroCookies } from 'astro'
 
+// Client general — usado en login con email/password y en el middleware
 export const supabase = createClient(
   import.meta.env.PUBLIC_SUPABASE_URL,
   import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
   {
     auth: {
-      flowType: 'pkce',
       autoRefreshToken: false,
       persistSession: false,
       detectSessionInUrl: false,
@@ -13,18 +14,36 @@ export const supabase = createClient(
   }
 )
 
-// Llama esto después del signInWithPassword exitoso
+// Client PKCE — solo para el flujo OAuth (callback de Google)
+export const supabasePKCE = createClient(
+  import.meta.env.PUBLIC_SUPABASE_URL,
+  import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      flowType: 'pkce',
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: true,
+    },
+  }
+)
+
 export function setAuthCookies(
-  cookies: import('astro').AstroCookies,
+  cookies: AstroCookies,
   session: { access_token: string; refresh_token: string }
 ) {
   const opts = {
     path: '/',
-    httpOnly: true,        // JS del cliente no puede leerla
-    secure: true,          // Solo HTTPS
+    httpOnly: true,
+    secure: import.meta.env.PROD,
     sameSite: 'lax' as const,
-    maxAge: 60 * 60 * 24 * 7, // 7 días
+    maxAge: 60 * 60 * 24 * 7,
   }
-  cookies.set('sb-access-token',  session.access_token,  opts)
+  cookies.set('sb-access-token', session.access_token, opts)
   cookies.set('sb-refresh-token', session.refresh_token, opts)
+}
+
+export function clearAuthCookies(cookies: AstroCookies) {
+  cookies.delete('sb-access-token', { path: '/' })
+  cookies.delete('sb-refresh-token', { path: '/' })
 }

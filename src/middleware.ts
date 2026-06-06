@@ -13,7 +13,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   if (!isAdminRoute || isAuthFlowRoute || isOAuthRoute) return next()
 
-  // Leer la cookie de sesión
   const supabase = createClient(
     import.meta.env.PUBLIC_SUPABASE_URL,
     import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
@@ -29,19 +28,41 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const refreshToken = context.cookies.get('sb-refresh-token')?.value
 
   if (!accessToken || !refreshToken) {
-    return context.redirect('/admin/login')
+    return context.redirect(
+      `/admin/login?redirect=${encodeURIComponent(context.url.pathname + context.url.search)}`
+    )
   }
 
-  const { data: { session }, error } = await supabase.auth.setSession({
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.setSession({
     access_token: accessToken,
     refresh_token: refreshToken,
   })
 
   if (error || !session) {
-    return context.redirect('/admin/login')
+    // Limpiar cookies inválidas antes de redirigir
+    context.cookies.delete('sb-access-token', { path: '/' })
+    context.cookies.delete('sb-refresh-token', { path: '/' })
+    return context.redirect(
+      `/admin/login?redirect=${encodeURIComponent(context.url.pathname + context.url.search)}`
+    )
   }
 
-  // Verificar que sea admin en la tabla profiles
+  // Rotar tokens si Supabase emitió nuevos (access token expirado pero refresh válido)
+  if (session.access_token !== accessToken) {
+    const opts = {
+      path: '/',
+      httpOnly: true,
+      secure: import.meta.env.PROD,
+      sameSite: 'lax' as const,
+      maxAge: 60 * 60 * 24 * 7,
+    }
+    context.cookies.set('sb-access-token', session.access_token, opts)
+    context.cookies.set('sb-refresh-token', session.refresh_token, opts)
+  }
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')

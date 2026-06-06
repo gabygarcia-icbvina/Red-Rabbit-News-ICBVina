@@ -11,19 +11,29 @@ export const prerender = false
     import.meta.env.PUBLIC_SUPABASE_ANON_KEY
   )
 
-  const { data: { session }, error } = await supabase.auth.getSession()
+  const { data, error } = await supabase.auth.getSessionFromUrl()
+  const session = data?.session
+  const params = new URLSearchParams(window.location.search)
+  const requestedRedirect = params.get('redirect')
+  const returnTo = requestedRedirect?.startsWith('/') ? requestedRedirect : '/admin'
 
   if (session) {
     // Manda los tokens al servidor para guardarlos en cookies httpOnly
-    await fetch('/admin/set-session', {
+    const response = await fetch('/admin/set-session', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         access_token:  session.access_token,
         refresh_token: session.refresh_token,
       }),
     })
-    window.location.href = '/admin'
+
+    if (response.ok) {
+      window.location.href = returnTo
+    } else {
+      window.location.href = '/admin/login?error=1'
+    }
   } else {
     window.location.href = '/admin/login?error=1'
   }

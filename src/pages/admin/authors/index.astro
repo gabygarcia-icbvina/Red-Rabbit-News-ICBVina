@@ -1,0 +1,132 @@
+---
+export const prerender = false
+import Layout from '../../../layouts/Layout.astro'
+import { supabase } from '../../../lib/supabase'
+
+// Cambiar rol
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData()
+  const userId = form.get('user_id')?.toString()
+  const role = form.get('role')?.toString()
+  if (userId && role) {
+    await supabase.from('profiles').update({ role }).eq('id', userId)
+  }
+  return Astro.redirect('/admin/authors')
+}
+
+const { data: authors } = await supabase
+  .from('profiles')
+  .select('id, full_name, email:id, role, created_at')
+  .order('created_at', { ascending: false })
+
+// Get article counts per author
+const { data: articleCounts } = await supabase
+  .from('articles')
+  .select('author_id')
+
+const countMap: Record<string, number> = {}
+articleCounts?.forEach(a => {
+  if (a.author_id) countMap[a.author_id] = (countMap[a.author_id] ?? 0) + 1
+})
+---
+
+<Layout title="Autores — Admin">
+  <div class="min-h-screen bg-slate-950 text-white">
+    <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
+      <div class="px-6 py-5 border-b border-slate-800">
+        <p class="text-red-400 text-xs font-bold uppercase tracking-widest">Red Rabbit</p>
+        <p class="text-white font-semibold text-sm mt-0.5">Panel editorial</p>
+      </div>
+      <nav class="flex-1 px-3 py-4 space-y-1">
+        {[
+          { href: '/admin', label: 'Dashboard', icon: '▦' },
+          { href: '/admin/articles', label: 'Artículos', icon: '✎' },
+          { href: '/admin/categories', label: 'Categorías', icon: '⊞' },
+          { href: '/admin/authors', label: 'Autores', icon: '◎' },
+          { href: '/admin/comments', label: 'Comentarios', icon: '☰' },
+        ].map(item => (
+          <a
+            href={item.href}
+            class={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
+              Astro.url.pathname === item.href ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <span>{item.icon}</span>{item.label}
+          </a>
+        ))}
+      </nav>
+      <div class="px-3 py-4 border-t border-slate-800">
+        <a href="/admin/logout" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-red-400 hover:bg-slate-800 transition">
+          <span>⏻</span> Cerrar sesión
+        </a>
+      </div>
+    </aside>
+
+    <main class="ml-60 p-8">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold">Autores</h1>
+        <p class="text-slate-400 text-sm mt-1">Gestiona los roles del equipo editorial</p>
+      </div>
+
+      <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-800">
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Nombre</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Artículos</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Rol actual</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Cambiar rol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {authors?.map(author => (
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs font-bold">
+                      {author.full_name?.charAt(0)?.toUpperCase() ?? '?'}
+                    </div>
+                    <span class="text-white font-medium">{author.full_name ?? 'Sin nombre'}</span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-slate-400">
+                  {countMap[author.id] ?? 0}
+                </td>
+                <td class="px-6 py-4">
+                  <span class={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    author.role === 'admin'
+                      ? 'bg-red-500/10 text-red-400'
+                      : author.role === 'author'
+                      ? 'bg-blue-500/10 text-blue-400'
+                      : 'bg-slate-700 text-slate-400'
+                  }`}>
+                    {author.role ?? 'usuario'}
+                  </span>
+                </td>
+                <td class="px-6 py-4">
+                  <form method="POST" class="flex items-center gap-2">
+                    <input type="hidden" name="user_id" value={author.id} />
+                    <select
+                      name="role"
+                      class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-red-500/50"
+                    >
+                      {['usuario', 'author', 'admin'].map(r => (
+                        <option value={r} selected={author.role === r}>{r}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="submit"
+                      class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg transition"
+                    >
+                      Guardar
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</Layout>

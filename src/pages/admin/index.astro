@@ -1,73 +1,134 @@
 ---
-import { supabase } from '../../lib/supabase';
-import Layout from '../../layouts/Layout.astro';
+export const prerender = false
+import Layout from '../../layouts/Layout.astro'
+import { supabase } from '../../lib/supabase'
 
-const accessToken = Astro.cookies.get('sb-access-token')?.value
-const refreshToken = Astro.cookies.get('sb-refresh-token')?.value
-
-if (!accessToken || !refreshToken) {
-  return Astro.redirect('/admin/login')
-}
-
-const { data: { session }, error: sessionError } = await supabase.auth.setSession({
-  access_token: accessToken,
-  refresh_token: refreshToken,
-})
-
-if (sessionError || !session) {
-  return Astro.redirect('/admin/login')
-}
-
-const { data: profile } = await supabase
-  .from('profiles')
-  .select('role')
-  .eq('id', session.user.id)
-  .single()
-
-if (profile?.role !== 'admin') {
-  return Astro.redirect('/')
-}
-
-const { data: articles } = await supabase
-  .from('articles')
-  .select('id, title, category, status, created_at')
-  .order('created_at', { ascending: false })
-  .limit(20)
-
+// Conteos para el dashboard
+const [
+  { count: totalPublished },
+  { count: totalDrafts },
+  { count: pendingComments },
+  { data: recentArticles },
+] = await Promise.all([
+  supabase.from('articles').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+  supabase.from('articles').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+  supabase.from('comments').select('*', { count: 'exact', head: true }).eq('approved', false),
+  supabase
+    .from('articles')
+    .select('id, title, status, created_at, profiles(full_name)')
+    .order('created_at', { ascending: false })
+    .limit(5),
+])
 ---
 
-<Layout title="Admin — Noticias">
-  <div class="p-6 max-w-4xl mx-auto">
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
-      <div class="stat bg-base-200 rounded-lg p-4">
-        <div class="stat-title text-xs">Publicados</div>
-        <div class="stat-value text-2xl">{articles?.filter(a => a.status === 'published').length}</div>
+<Layout title="Dashboard — Admin">
+  <div class="min-h-screen bg-slate-950 text-white">
+    <!-- Sidebar -->
+    <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 border-r border-slate-800 flex flex-col">
+      <div class="px-6 py-5 border-b border-slate-800">
+        <p class="text-red-400 text-xs font-bold uppercase tracking-widest">Red Rabbit</p>
+        <p class="text-white font-semibold text-sm mt-0.5">Panel editorial</p>
       </div>
-      <!-- más stats... -->
-    </div>
-
-    <table class="table table-sm bg-base-200 rounded-lg">
-      <thead>
-        <tr class="text-base-content/40 text-xs">
-          <th>Título</th><th>Categoría</th><th>Estado</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {articles?.map(a => (
-          <tr class="hover:bg-base-300 transition-colors">
-            <td class="text-sm">{a.title}</td>
-            <td><span class="badge badge-xs badge-primary">{a.category}</span></td>
-            <td>
-              <span class:list={['text-xs', a.status === 'published' ? 'text-secondary' : 'text-accent']}>
-                ● {a.status === 'published' ? 'Publicado' : 'Borrador'}
+      <nav class="flex-1 px-3 py-4 space-y-1">
+        {[
+          { href: '/admin', label: 'Dashboard', icon: '▦' },
+          { href: '/admin/articles', label: 'Artículos', icon: '✎' },
+          { href: '/admin/categories', label: 'Categorías', icon: '⊞' },
+          { href: '/admin/authors', label: 'Autores', icon: '◎' },
+          { href: '/admin/comments', label: 'Comentarios', icon: '☰', badge: pendingComments ?? 0 },
+        ].map(item => (
+          <a
+            href={item.href}
+            class="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition group"
+          >
+            <span class="flex items-center gap-3">
+              <span class="text-base">{item.icon}</span>
+              {item.label}
+            </span>
+            {item.badge ? (
+              <span class="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                {item.badge}
               </span>
-            </td>
-            <td>
-              <a href={`/admin/editar/${a.id}`} class="btn btn-xs btn-ghost">Editar</a>
-            </td>
-          </tr>
+            ) : null}
+          </a>
         ))}
-      </tbody>
-    </table>
+      </nav>
+      <div class="px-3 py-4 border-t border-slate-800">
+        <a
+          href="/admin/logout"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:text-red-400 hover:bg-slate-800 transition"
+        >
+          <span>⏻</span> Cerrar sesión
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="ml-60 p-8">
+      <div class="mb-8">
+        <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+        <p class="text-slate-400 text-sm mt-1">Resumen del periódico escolar</p>
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 gap-4 mb-8">
+        {[
+          { label: 'Publicados', value: totalPublished ?? 0, color: 'text-green-400', bg: 'bg-green-500/10 border-green-500/20' },
+          { label: 'Borradores', value: totalDrafts ?? 0, color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
+          { label: 'Comentarios pendientes', value: pendingComments ?? 0, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
+        ].map(stat => (
+          <div class={`rounded-2xl border p-6 ${stat.bg}`}>
+            <p class="text-slate-400 text-sm mb-1">{stat.label}</p>
+            <p class={`text-4xl font-bold ${stat.color}`}>{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <!-- Recent articles -->
+      <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+          <h2 class="font-semibold text-white">Artículos recientes</h2>
+          <a href="/admin/articles/new" class="text-xs bg-red-500 hover:bg-red-400 transition text-white font-semibold px-3 py-1.5 rounded-full">
+            + Nuevo artículo
+          </a>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-800">
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Título</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Autor</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Estado</th>
+              <th class="text-left px-6 py-3 text-slate-400 font-medium">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentArticles?.map(article => (
+              <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
+                <td class="px-6 py-3 text-white font-medium">
+                  <a href={`/admin/articles/${article.id}`} class="hover:text-red-400 transition">
+                    {article.title}
+                  </a>
+                </td>
+                <td class="px-6 py-3 text-slate-400">
+                  {(article.profiles as any)?.full_name ?? '—'}
+                </td>
+                <td class="px-6 py-3">
+                  <span class={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    article.status === 'published'
+                      ? 'bg-green-500/10 text-green-400'
+                      : 'bg-yellow-500/10 text-yellow-400'
+                  }`}>
+                    {article.status === 'published' ? 'Publicado' : 'Borrador'}
+                  </span>
+                </td>
+                <td class="px-6 py-3 text-slate-400">
+                  {new Date(article.created_at).toLocaleDateString('es-CL')}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </main>
   </div>
 </Layout>
