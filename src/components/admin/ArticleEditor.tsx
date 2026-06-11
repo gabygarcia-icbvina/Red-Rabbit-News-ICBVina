@@ -65,7 +65,7 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
     if (!file) return
     setUploading(true)
     try {
-      const url = await uploadImage(file, 'redrabbit/covers')
+      const url = await uploadImage(file, 'articles')
       setImageUrl(url)
     } catch {
       setError('Error al subir la imagen')
