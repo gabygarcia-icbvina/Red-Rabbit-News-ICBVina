@@ -1,120 +1,166 @@
 ---
 export const prerender = false
-import Layout from '../../layouts/Layout.astro'
 import { supabase } from '../../lib/supabase'
+import { cloudinaryUrl } from '../../lib/cloudinary'
 
-const status = Astro.url.searchParams.get('status') ?? 'all'
+const selectedCategory = Astro.url.searchParams.get('categoria') ?? ''
 
 let query = supabase
   .from('articles')
-  .select('id, title, slug, status, created_at, category, image_url')
+  .select('id, title, slug, excerpt, image_url, category, created_at')
+  .eq('status', 'published')
   .order('created_at', { ascending: false })
 
-if (status !== 'all') query = query.eq('status', status)
+if (selectedCategory) query = query.eq('category', selectedCategory)
 
 const { data: articles } = await query
-
-// Buscar nombres de categorías en batch
-const categoryIds = [...new Set(articles?.map(a => a.category).filter(Boolean))]
-const { data: categories } = categoryIds.length
-  ? await supabase.from('categories').select('id, name, color').in('id', categoryIds)
-  : { data: [] }
+const { data: categories } = await supabase.from('categories').select('id, name, color, slug').order('name')
 
 const categoryMap = Object.fromEntries(categories?.map(c => [c.id, c]) ?? [])
 ---
 
-<Layout title="Artículos">
-  <div class="min-h-screen bg-slate-950 text-white overflow-x-hidden">
-    <main class="p-8">
-      <div class="mb-6 flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-center">Explora nuestros Artículos</h1>
-          <p class="text-slate-400 text-sm mt-1">{articles?.length ?? 0} artículos encontrados</p>
-        </div>
-      </div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Artículos — Red Rabbit News</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Source+Serif+4:wght@300;400;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --ink: #1a1208; --ink-light: #4a3f2f; --ink-muted: #8a7a68;
+      --paper: #f7f3ec; --paper-warm: #ede8df;
+      --red: #c0392b; --red-dark: #922b21; --rule: #c8bfb0;
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'Source Serif 4', Georgia, serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+    html { background: var(--paper); }
+    body { font-family: var(--font-body); color: var(--ink); min-height: 100vh; }
 
-      <!-- Filtros -->
-      <div class="flex gap-2 mb-6">
-        {[
-          { value: 'all', label: 'Todos' },
-          { value: 'published', label: 'Publicados' },
-          { value: 'draft', label: 'Borradores' },
-        ].map(f => (
-          <a
-            href={`/articles?status=${f.value}`}
-            class={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
-              status === f.value
-                ? 'bg-red-500 text-white'
-                : 'bg-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            {f.label}
-          </a>
-        ))}
-      </div>
+    .masthead { border-bottom: 3px double var(--rule); background: var(--paper); position: sticky; top: 0; z-index: 50; }
+    .masthead-inner { max-width: 1100px; margin: 0 auto; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    .masthead-logo { font-family: var(--font-display); font-size: 1.5rem; font-weight: 900; color: var(--red); text-decoration: none; }
+    .masthead-logo span { color: var(--ink); }
+    .masthead-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.08em; }
 
-      <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="border-b border-slate-800">
-              <th class="text-left px-6 py-3 text-slate-400 font-medium">Título</th>
-              <th class="text-left px-6 py-3 text-slate-400 font-medium">Categoría</th>
-              <th class="text-left px-6 py-3 text-slate-400 font-medium">Estado</th>
-              <th class="text-left px-6 py-3 text-slate-400 font-medium">Fecha</th>
-              <th class="px-6 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {articles?.map(article => {
-              const cat = categoryMap[article.category]
-              return (
-                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
-                  <td class="px-6 py-3 text-white font-medium max-w-xs truncate">
-                    {article.title}
-                  </td>
-                  <td class="px-6 py-3">
-                    {cat ? (
-                      <span
-                        class="text-xs font-semibold px-2 py-1 rounded-full"
-                        style={`background:${cat.color}20;color:${cat.color}`}
-                      >
-                        {cat.name}
-                      </span>
-                    ) : <span class="text-slate-600">—</span>}
-                  </td>
-                  <td class="px-6 py-3">
-                    <span class={`text-xs font-semibold px-2 py-1 rounded-full ${
-                      article.status === 'published'
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-yellow-500/10 text-yellow-400'
-                    }`}>
-                      {article.status === 'published' ? 'Publicado' : 'Borrador'}
-                    </span>
-                  </td>
-                  <td class="px-6 py-3 text-slate-400">
-                    {new Date(article.created_at).toLocaleDateString('es-CL')}
-                  </td>
-                  <td class="px-6 py-3 flex items-center gap-2 justify-end">
-                    <a
-                      href={`/articles/${article.slug}`}
-                      class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition px-3 py-1.5 rounded-lg"
-                    >
-                      Ver
-                    </a>
-                  </td>
-                </tr>
-              )
-            })}
-            {!articles?.length && (
-              <tr>
-                <td colspan="5" class="px-6 py-12 text-center text-slate-500">
-                  No hay artículos todavía.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </main>
+    .page-header { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem 1.5rem; }
+    .page-title { font-family: var(--font-display); font-size: 2.2rem; font-weight: 900; color: var(--ink); margin-bottom: 0.5rem; }
+    .page-sub { color: var(--ink-muted); font-size: 0.95rem; }
+
+    .filters { max-width: 1100px; margin: 0 auto; padding: 0 2rem 2rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .filter-pill {
+      font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 0.4rem 1rem; border-radius: 100px; text-decoration: none; transition: all 0.15s;
+      border: 1px solid var(--rule); color: var(--ink-muted); background: var(--paper);
+    }
+    .filter-pill.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .filter-pill:hover:not(.active) { border-color: var(--red); color: var(--red); }
+
+    .grid {
+      max-width: 1100px; margin: 0 auto; padding: 0 2rem 4rem;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;
+    }
+
+    .card { text-decoration: none; color: inherit; display: flex; flex-direction: column; group: card; }
+    .card-image-wrap {
+      width: 100%; aspect-ratio: 4/3; overflow: hidden; background: var(--paper-warm);
+      border: 1px solid var(--rule); margin-bottom: 1rem; position: relative;
+    }
+    .card-image { width: 100%; height: 100%; object-fit: cover; filter: sepia(8%); transition: transform 0.3s ease; }
+    .card:hover .card-image { transform: scale(1.04); }
+    .card-image-placeholder {
+      width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display); font-size: 2.5rem; font-weight: 900; color: var(--rule);
+    }
+    .card-category {
+      display: inline-block; font-family: var(--font-mono); font-size: 0.62rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase; padding: 0.25rem 0.65rem; border-radius: 2px;
+      color: white; margin-bottom: 0.6rem; width: fit-content;
+    }
+    .card-title {
+      font-family: var(--font-display); font-size: 1.25rem; font-weight: 700; color: var(--ink);
+      line-height: 1.25; margin-bottom: 0.5rem; transition: color 0.15s;
+    }
+    .card:hover .card-title { color: var(--red-dark); }
+    .card-excerpt { font-size: 0.88rem; color: var(--ink-light); line-height: 1.5; margin-bottom: 0.6rem; flex: 1; }
+    .card-date { font-family: var(--font-mono); font-size: 0.65rem; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    .empty-state {
+      max-width: 1100px; margin: 0 auto; padding: 4rem 2rem; text-align: center;
+      color: var(--ink-muted); font-family: var(--font-body); font-size: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: 1fr; }
+      .masthead-inner { padding: 0.75rem 1.25rem; }
+      .page-header, .filters, .grid { padding-left: 1.25rem; padding-right: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="masthead-inner">
+      <a href="/" class="masthead-logo">Red<span>Rabbit</span></a>
+      <span class="masthead-date">
+        {new Date().toLocaleDateString('es-CL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      </span>
+    </div>
+  </header>
+
+  <div class="page-header">
+    <h1 class="page-title">Artículos</h1>
+    <p class="page-sub">{articles?.length ?? 0} artículo{articles?.length !== 1 ? 's' : ''} publicado{articles?.length !== 1 ? 's' : ''}</p>
   </div>
-</Layout>
+
+  <div class="filters">
+    <a href="/articles" class={`filter-pill ${!selectedCategory ? 'active' : ''}`}>Todos</a>
+    {categories?.map(cat => (
+      <a
+        href={`/articles?categoria=${cat.id}`}
+        class={`filter-pill ${selectedCategory === cat.id ? 'active' : ''}`}
+      >
+        {cat.name}
+      </a>
+    ))}
+  </div>
+
+  {articles?.length ? (
+    <div class="grid">
+      {articles.map(article => {
+        const cat = categoryMap[article.category]
+        const img = article.image_url ? cloudinaryUrl(article.image_url, { width: 500, height: 375, quality: 80 }) : null
+        return (
+          <a href={`/articles/${article.slug}`} class="card">
+            <div class="card-image-wrap">
+              {img ? (
+                <img src={img} alt={article.title} class="card-image" />
+              ) : (
+                <div class="card-image-placeholder">R</div>
+              )}
+            </div>
+            {cat && (
+              <span class="card-category" style={`background:${cat.color}`}>{cat.name}</span>
+            )}
+            <h2 class="card-title">{article.title}</h2>
+            {article.excerpt && <p class="card-excerpt">{article.excerpt}</p>}
+            <span class="card-date">
+              {new Date(article.created_at).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </a>
+        )
+      })}
+    </div>
+  ) : (
+    <div class="empty-state">
+      No hay artículos {selectedCategory ? 'en esta categoría' : 'publicados'} todavía.
+    </div>
+  )}
+</body>
+</html>
