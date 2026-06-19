@@ -7,12 +7,20 @@ const status = Astro.url.searchParams.get('status') ?? 'all'
 
 let query = supabase
   .from('articles')
-  .select('id, title, slug, status, created_at, published_at, profiles(full_name), categories(name, color)')
+  .select('id, title, slug, status, created_at, category, image_url, author_id')
   .order('created_at', { ascending: false })
 
 if (status !== 'all') query = query.eq('status', status)
 
-const { data: articles } = await query
+const { data: articles, error } = await query
+
+// Buscar nombres de categorías en batch (category es texto/uuid, no foreign key)
+const categoryIds = [...new Set(articles?.map(a => a.category).filter(Boolean))]
+const { data: categoriesData } = categoryIds.length
+  ? await supabase.from('categories').select('id, name, color').in('id', categoryIds)
+  : { data: [] }
+
+const categoryMap = Object.fromEntries(categoriesData?.map(c => [c.id, c]) ?? [])
 ---
 
 <Layout title="Artículos — Admin">
@@ -60,6 +68,12 @@ const { data: articles } = await query
         </a>
       </div>
 
+      {error && (
+        <div class="mb-4 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+          Error al cargar artículos: {error.message}
+        </div>
+      )}
+
       <!-- Filtros -->
       <div class="flex gap-2 mb-6">
         {[
@@ -86,63 +100,62 @@ const { data: articles } = await query
             <tr class="border-b border-slate-800">
               <th class="text-left px-6 py-3 text-slate-400 font-medium">Título</th>
               <th class="text-left px-6 py-3 text-slate-400 font-medium">Categoría</th>
-              <th class="text-left px-6 py-3 text-slate-400 font-medium">Autor</th>
               <th class="text-left px-6 py-3 text-slate-400 font-medium">Estado</th>
               <th class="text-left px-6 py-3 text-slate-400 font-medium">Fecha</th>
               <th class="px-6 py-3"></th>
             </tr>
           </thead>
           <tbody>
-            {articles?.map(article => (
-              <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
-                <td class="px-6 py-3 text-white font-medium max-w-xs truncate">
-                  {article.title}
-                </td>
-                <td class="px-6 py-3">
-                  {(article.categories as any) ? (
-                    <span
-                      class="text-xs font-semibold px-2 py-1 rounded-full"
-                      style={`background:${(article.categories as any).color}20;color:${(article.categories as any).color}`}
-                    >
-                      {(article.categories as any).name}
+            {articles?.map(article => {
+              const cat = categoryMap[article.category]
+              return (
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
+                  <td class="px-6 py-3 text-white font-medium max-w-xs truncate">
+                    {article.title}
+                  </td>
+                  <td class="px-6 py-3">
+                    {cat ? (
+                      <span
+                        class="text-xs font-semibold px-2 py-1 rounded-full"
+                        style={`background:${cat.color}20;color:${cat.color}`}
+                      >
+                        {cat.name}
+                      </span>
+                    ) : <span class="text-slate-600">—</span>}
+                  </td>
+                  <td class="px-6 py-3">
+                    <span class={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      article.status === 'published'
+                        ? 'bg-green-500/10 text-green-400'
+                        : 'bg-yellow-500/10 text-yellow-400'
+                    }`}>
+                      {article.status === 'published' ? 'Publicado' : 'Borrador'}
                     </span>
-                  ) : <span class="text-slate-600">—</span>}
-                </td>
-                <td class="px-6 py-3 text-slate-400">
-                  {(article.profiles as any)?.full_name ?? '—'}
-                </td>
-                <td class="px-6 py-3">
-                  <span class={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    article.status === 'published'
-                      ? 'bg-green-500/10 text-green-400'
-                      : 'bg-yellow-500/10 text-yellow-400'
-                  }`}>
-                    {article.status === 'published' ? 'Publicado' : 'Borrador'}
-                  </span>
-                </td>
-                <td class="px-6 py-3 text-slate-400">
-                  {new Date(article.created_at).toLocaleDateString('es-CL')}
-                </td>
-                <td class="px-6 py-3 flex items-center gap-2 justify-end">
-                  <a
-                    href={`/admin/articles/${article.id}`}
-                    class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition px-3 py-1.5 rounded-lg"
-                  >
-                    Editar
-                  </a>
-                  <button
-                    data-delete={article.id}
-                    class="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 transition px-3 py-1.5 rounded-lg"
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td class="px-6 py-3 text-slate-400">
+                    {new Date(article.created_at).toLocaleDateString('es-CL')}
+                  </td>
+                  <td class="px-6 py-3 flex items-center gap-2 justify-end">
+                    <a
+                      href={`/admin/articles/${article.id}`}
+                      class="text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition px-3 py-1.5 rounded-lg"
+                    >
+                      Editar
+                    </a>
+                    <button
+                      data-delete={article.id}
+                      class="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 transition px-3 py-1.5 rounded-lg"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
             {!articles?.length && (
               <tr>
-                <td colspan="6" class="px-6 py-12 text-center text-slate-500">
-                  No hay artículos todavía.
+                <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                  No hay artículos {status !== 'all' ? `con estado "${status}"` : ''} todavía.
                 </td>
               </tr>
             )}

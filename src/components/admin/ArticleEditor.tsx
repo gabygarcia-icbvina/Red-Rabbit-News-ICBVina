@@ -99,7 +99,6 @@ export default function ArticleEditor({ article, categories, authors }: ArticleE
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
-      window.open(`/articles/id/${data.id}`, '_blank')
       window.location.href = `/articles/${data.slug}`
     } catch (e: any) {
       setError(e.message ?? 'Error al guardar')
